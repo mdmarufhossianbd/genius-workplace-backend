@@ -32,7 +32,6 @@ async function run() {
     // add job in database
     app.post('/add-job', async(req, res)=>{
         const job = req.body;
-        console.log(job);
         const result = await jobCollections.insertOne(job);
         res.send(result);
     })
@@ -44,13 +43,42 @@ async function run() {
         res.send(result);
     })
 
+    // job details
+    app.get('/job-details/:id', async(req, res)=>{
+      const id = req.params.id;
+      const query = {_id : new ObjectId(id)};
+      const result = await jobCollections.findOne(query);
+      res.send(result)
+    })
+
     // get jobs for each user
     app.get('/all-jobs/:email', async(req, res)=>{
       const email = req.params.email;
-      console.log(email);
       const query = {'emplyoer.email' : email}
       const result = await jobCollections.find(query).toArray();
       res.send(result)
+    })
+
+    // job update api
+    app.put('/update-job/:id', async(req, res)=>{
+      const id = req.params.id;
+      console.log(id);
+      const filter = {_id : new ObjectId(id)}
+      const options = {upsert : true}
+      const updateJob = req.body;
+      const job = {
+        $set: {
+          jobBanner : updateJob.jobBanner,
+          jobTitle : updateJob.jobTitle,
+          jobCategory : updateJob.jobCategory,
+          minSalary : updateJob.minSalary,
+          maxSalary : updateJob.maxSalary,
+          deadline : updateJob.deadline,
+          jobDescription : updateJob.jobDescription,
+        }
+      }
+      const result = await jobCollections.updateOne(filter, job, options)
+      res.send(result);
     })
 
     // delete each data
