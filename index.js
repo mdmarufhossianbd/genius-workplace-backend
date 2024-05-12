@@ -29,6 +29,9 @@ async function run() {
     await client.connect();
 
     const jobCollections = client.db('geniuesWorkPlace').collection('jobs')
+    const applyCollections = client.db('geniuesWorkPlace').collection('applies')
+
+
     // add job in database
     app.post('/add-job', async(req, res)=>{
         const job = req.body;
@@ -81,6 +84,22 @@ async function run() {
       res.send(result);
     })
 
+
+    // job apply store in DB
+    app.post('/applies', async(req, res)=>{
+      const apply = req.body;
+      const result = await applyCollections.insertOne(apply);
+      res.send(result)
+    })
+
+    // applied jobs get for user
+    app.get('/applied-jobs/:email', async(req, res)=>{
+      const email = req.params.email;
+      const query = {applicantEmail : email}
+      const result = await applyCollections.find(query).toArray();
+      res.send(result)
+    })
+
     // delete each data
     app.delete('/all-jobs/:id', async(req, res)=>{
       const id = req.params.id;
@@ -98,9 +117,6 @@ async function run() {
   }
 }
 run().catch(console.dir);
-
-
-
 
 
 // server
