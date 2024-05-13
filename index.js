@@ -46,6 +46,17 @@ async function run() {
         res.send(result);
     })
 
+    // search api for all jobs
+    app.get('/job-search', async(req, res) =>{
+      const search = req.query.search;
+      let query = {
+        jobTitle : {$regex : `${search}`, $options : 'i'}
+      }
+      const result = await jobCollections.find(query).toArray();
+      res.send(result)
+      console.log(query);
+    })
+
     // job details
     app.get('/job-details/:id', async(req, res)=>{
       const id = req.params.id;
