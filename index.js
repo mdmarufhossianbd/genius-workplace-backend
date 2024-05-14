@@ -1,15 +1,25 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const {
+  MongoClient,
+  ServerApiVersion,
+  ObjectId
+} = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
-
 // middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173'
+  ],
+  credentials: true
+}));
 app.use(express.json());
-
+app.use(cookieParser());
 
 // mongodb
 
@@ -24,103 +34,171 @@ const client = new MongoClient(uri, {
   }
 });
 
+
+// token maddleware
+const logger = (req, res, next) => {
+  console.log('log : info', req.method, req.url);
+  next();
+}
+
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  if (!token) {
+    return res.status(401).send({
+      message: 'Unauthorized access'
+    })
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRECT, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({
+        message: 'unauthorized access'
+      })
+    }
+    req.user = decoded;
+    next();
+  })
+
+}
+
 async function run() {
-  try {    
+  try {
     await client.connect();
 
     const jobCollections = client.db('geniuesWorkPlace').collection('jobs')
     const applyCollections = client.db('geniuesWorkPlace').collection('applies')
 
+    // auth related api
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      console.log('user for token', user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRECT, {
+        expiresIn: '12h'
+      });
+
+      res.cookie('token', token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'none'
+        })
+        .send({
+          success: true
+        });
+    })
+
+    app.post('/logout', async (req, res) => {
+      const user = req.body;
+      res.clearCookie('token', {
+        maxAge: 0
+      }).send({
+        success: true
+      })
+    })
 
     // add job in database
-    app.post('/add-job', async(req, res)=>{
-        const job = req.body;
-        const result = await jobCollections.insertOne(job);
-        res.send(result);
+    app.post('/add-job', async (req, res) => {
+      const job = req.body;
+      const result = await jobCollections.insertOne(job);
+      res.send(result);
     })
 
     // get Job from database
-    app.get('/all-jobs', async(req, res)=>{
-        const cursor = jobCollections.find();
-        const result = await cursor.toArray();
-        res.send(result);
+    app.get('/all-jobs', async (req, res) => {
+      const cursor = jobCollections.find();
+      const result = await cursor.toArray();
+      res.send(result);
     })
 
     // search api for all jobs
-    app.get('/job-search', async(req, res) =>{
+    app.get('/job-search', async (req, res) => {
       const search = req.query.search;
       let query = {
-        jobTitle : {$regex : `${search}`, $options : 'i'}
+        jobTitle: {
+          $regex: `${search}`,
+          $options: 'i'
+        }
       }
       const result = await jobCollections.find(query).toArray();
       res.send(result)
-      console.log(query);
     })
 
     // job details
-    app.get('/job-details/:id', async(req, res)=>{
+    app.get('/job-details/:id', async (req, res) => {
       const id = req.params.id;
-      const query = {_id : new ObjectId(id)};
+      const query = {
+        _id: new ObjectId(id)
+      };
       const result = await jobCollections.findOne(query);
       res.send(result)
     })
 
     // get jobs for each user
-    app.get('/all-jobs/:email', async(req, res)=>{
+    app.get('/all-jobs/:email', logger, verifyToken, async (req, res) => {
       const email = req.params.email;
-      const query = {'emplyoer.email' : email}
+      const query = {
+        'emplyoer.email': email
+      }
       const result = await jobCollections.find(query).toArray();
       res.send(result)
     })
 
+
     // job update api
-    app.put('/update-job/:id', async(req, res)=>{
+    app.put('/update-job/:id', async (req, res) => {
       const id = req.params.id;
       console.log(id);
-      const filter = {_id : new ObjectId(id)}
-      const options = {upsert : true}
+      const filter = {
+        _id: new ObjectId(id)
+      }
+      const options = {
+        upsert: true
+      }
       const updateJob = req.body;
       const job = {
         $set: {
-          jobBanner : updateJob.jobBanner,
-          jobTitle : updateJob.jobTitle,
-          jobCategory : updateJob.jobCategory,
-          minSalary : updateJob.minSalary,
-          maxSalary : updateJob.maxSalary,
-          deadline : updateJob.deadline,
-          jobDescription : updateJob.jobDescription,
+          jobBanner: updateJob.jobBanner,
+          jobTitle: updateJob.jobTitle,
+          jobCategory: updateJob.jobCategory,
+          minSalary: updateJob.minSalary,
+          maxSalary: updateJob.maxSalary,
+          deadline: updateJob.deadline,
+          jobDescription: updateJob.jobDescription,
         }
       }
       const result = await jobCollections.updateOne(filter, job, options)
       res.send(result);
     })
 
-
     // job apply store in DB
-    app.post('/applies', async(req, res)=>{
+    app.post('/applies', async (req, res) => {
       const apply = req.body;
       const result = await applyCollections.insertOne(apply);
       res.send(result)
     })
 
     // applied jobs get for user
-    app.get('/applied-jobs/:email', async(req, res)=>{
+    app.get('/applied-jobs/:email', logger, verifyToken, async (req, res) => {
       const email = req.params.email;
-      const query = {applicantEmail : email}
+      const query = {
+        applicantEmail: email
+      }
       const result = await applyCollections.find(query).toArray();
       res.send(result)
     })
 
-    // delete each data
-    app.delete('/all-jobs/:id', async(req, res)=>{
+    // delete job data
+    app.delete('/all-jobs/:id', async (req, res) => {
       const id = req.params.id;
-      const query = { _id : new ObjectId(id)}
+      const query = {
+        _id: new ObjectId(id)
+      }
       const result = await jobCollections.deleteOne(query);
       res.send(result);
     })
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({
+      ping: 1
+    });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
@@ -129,12 +207,11 @@ async function run() {
 }
 run().catch(console.dir);
 
-
 // server
-app.get('/', (req, res)=>{
-    res.send('Genies Work Place server is running.')
+app.get('/', (req, res) => {
+  res.send('Genies Work Place server is running.')
 })
 
-app.listen(port, ()=>{
-    console.log(`Genius Work Place server is running on ${port}`);
+app.listen(port, () => {
+  console.log(`Genius Work Place server is running on ${port}`);
 })
