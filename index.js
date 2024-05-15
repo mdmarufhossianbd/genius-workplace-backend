@@ -37,7 +37,7 @@ const client = new MongoClient(uri, {
 
 // token maddleware
 const logger = (req, res, next) => {
-  console.log('log : info', req.method, req.url);
+  // console.log('log : info', req.method, req.url);
   next();
 }
 
@@ -70,7 +70,7 @@ async function run() {
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      console.log('user for token', user);
+      // console.log('user for token', user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRECT, {
         expiresIn: '12h'
       });
@@ -144,8 +144,7 @@ async function run() {
 
     // job update api
     app.put('/update-job/:id', async (req, res) => {
-      const id = req.params.id;
-      console.log(id);
+      const id = req.params.id;      
       const filter = {
         _id: new ObjectId(id)
       }
@@ -171,7 +170,27 @@ async function run() {
     // job apply store in DB
     app.post('/applies', async (req, res) => {
       const apply = req.body;
+        // checking duplicate applied
+      const query = {
+        applicantEmail : apply.applicantEmail,
+        jobId : apply.jobId
+      }
+      const alreadyApplied = await applyCollections.findOne(query)
+      console.log(alreadyApplied)
+      if (alreadyApplied) {
+        return res
+          .status(400)
+          .send('You have already applied on this job.')
+      }      
       const result = await applyCollections.insertOne(apply);
+        // appliedCount Upadte
+      const updateApplied = {
+        $inc : {applied_count: 1}
+      }
+      // const id = req.applyData.
+      const jobQuery = {_id : new ObjectId(apply.jobId)}
+      const updateTotalApplicant = await jobCollections.updateOne(jobQuery, updateApplied)
+      // console.log(updateTotalApplicant);
       res.send(result)
     })
 
