@@ -14,7 +14,9 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors({
   origin: [
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'https://genius-workplace.web.app',
+    'https://genius-workplace.firebaseapp.com'
   ],
   credentials: true
 }));
@@ -37,7 +39,6 @@ const client = new MongoClient(uri, {
 
 // token maddleware
 const logger = (req, res, next) => {
-  // console.log('log : info', req.method, req.url);
   next();
 }
 
@@ -62,7 +63,7 @@ const verifyToken = (req, res, next) => {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const jobCollections = client.db('geniuesWorkPlace').collection('jobs')
     const applyCollections = client.db('geniuesWorkPlace').collection('applies')
@@ -70,7 +71,6 @@ async function run() {
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      // console.log('user for token', user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRECT, {
         expiresIn: '12h'
       });
@@ -175,8 +175,7 @@ async function run() {
         applicantEmail : apply.applicantEmail,
         jobId : apply.jobId
       }
-      const alreadyApplied = await applyCollections.findOne(query)
-      console.log(alreadyApplied)
+      const alreadyApplied = await applyCollections.findOne(query);     
       if (alreadyApplied) {
         return res
           .status(400)
@@ -189,8 +188,7 @@ async function run() {
       }
       // const id = req.applyData.
       const jobQuery = {_id : new ObjectId(apply.jobId)}
-      const updateTotalApplicant = await jobCollections.updateOne(jobQuery, updateApplied)
-      // console.log(updateTotalApplicant);
+      const updateTotalApplicant = await jobCollections.updateOne(jobQuery, updateApplied)   
       res.send(result)
     })
 
